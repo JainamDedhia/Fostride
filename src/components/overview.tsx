@@ -6,9 +6,8 @@ import { Trash2, TrendingUp, MapPin, Users, Plus } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, BarChart, Bar } from 'recharts';
 import { useBinData } from './bin-data-context';
 import { useTranslation } from './translation-context';
-import { useEffect, useState } from 'react'
-import { collection, doc, onSnapshot } from "firebase/firestore";
-import { db } from "./firebase-config"; // ✅ Fix: import db here
+import { useEffect, useState } from 'react';
+import { supabase } from "./supasbase";
 
 
 // This data is now dynamically generated from the context
@@ -25,36 +24,47 @@ const wasteBreakdown = [
 export function Overview() {
   const { binData, fillLevelTrend, dailyWasteData, systemOnline, setBinData, updateFillLevelTrend } = useBinData();
   const { t } = useTranslation();
-
-
+  const [supabaseData, setSupabaseData] = useState<any>(null);
+  const [lastSupabaseUpdate, setLastSupabaseUpdate] = useState<string>("");
   const [firebaseData, setFirebaseData] = useState<any>(null);
   const [lastFirebaseUpdate, setLastFirebaseUpdate] = useState<string>("");
 
-  useEffect(() => {
-    console.log("🔥 Setting up Firebase listener...");
-    
-    const unsubscribe = onSnapshot(
-      doc(db, 'dashboard', 'current'),
-      (docSnapshot) => {
-        if (docSnapshot.exists()) {
-          const data = docSnapshot.data();
-          console.log('🔥 REAL-TIME UPDATE FROM FIREBASE:', data);
-          setFirebaseData(data);
-          setLastFirebaseUpdate(new Date().toLocaleTimeString());
-        } else {
-          console.log("⚠️ No data in Firebase yet");
-        }
-      },
-      (error) => {
-        console.error("❌ Firebase error:", error);
+useEffect(() => {
+  console.log("🔥 Setting up Supabase Realtime listener...");
+  
+  const channel = supabase
+    .channel("custom-all-channel")
+    .on(
+      "postgres_changes",
+      { event: "*", schema: "public", table: "testdata" },
+      (payload) => {
+        console.log("📩 Supabase payload received:", payload);
+        console.log("Event type:", payload.eventType);
+        console.log("New data:", payload.new);
+        
+        // ✅ Set the correct state variable
+        setSupabaseData(payload.new);
+        
+        // ✅ Update timestamp
+        const now = new Date();
+        setLastSupabaseUpdate(now.toLocaleTimeString());
       }
-    );
+    )
+    .subscribe((status, err) => {
+      console.log("🔌 Subscription status:", status);
+      if (err) {
+        console.error("❌ Subscription error:", err);
+      }
+      if (status === 'SUBSCRIBED') {
+        console.log("✅ Successfully subscribed to testdata changes");
+      }
+    });
 
-    return () => {
-      console.log("🔥 Cleaning up Firebase listener");
-      unsubscribe();
-    };
-  }, []);
+  return () => {
+    console.log("🔥 Cleaning up Supabase listener");
+    supabase.removeChannel(channel);
+  };
+}, []); // ✅ Empty dependency array
   
   // Function to simulate waste accumulation (for testing)
   const simulateWasteAddition = () => {
@@ -165,16 +175,16 @@ export function Overview() {
   <CardContent>
     {/* 🔥 LIVE DATA FROM FIREBASE */}
     <div className="text-xl sm:text-2xl font-bold">
-      {firebaseData ? firebaseData.totalWasteCollected.toFixed(1) : totalWasteToday.toFixed(1)}L
+      {supabaseData ? supabaseData.total_waste.toFixed(1) : totalWasteToday.toFixed(1)}L
     </div>
     
     {/* Show live indicator */}
-    {firebaseData && (
-      <div className="flex items-center gap-2 mt-1">
-        <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
-        <span className="text-xs text-red-600 font-semibold">LIVE • {lastFirebaseUpdate}</span>
-      </div>
-    )}
+    {supabaseData && (
+  <div className="flex items-center gap-2 mt-1">
+    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+    <span className="text-xs text-green-600 font-semibold">LIVE • {lastSupabaseUpdate}</span>
+  </div>
+)}
             <p className="text-xs sm:text-sm text-muted-foreground">
               <span className={`flex items-center gap-1 ${dailyGrowth >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                 <TrendingUp className="h-3 w-3" />
