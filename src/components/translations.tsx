@@ -151,9 +151,10 @@ export const translations = {
     now: "now",
     
     // Status messages
-    connected: "Connected",
     disconnected: "Disconnected",
     syncing: "Syncing",
+
+
     
     // Units
     liters: "L",
@@ -331,7 +332,6 @@ export const translations = {
     now: "अभी",
     
     // Status messages
-    connected: "कनेक्टेड",
     disconnected: "डिस्कनेक्टेड",
     syncing: "सिंक हो रहा है",
     
@@ -511,7 +511,6 @@ export const translations = {
     now: "आता",
     
     // Status messages
-    connected: "जोडले",
     disconnected: "डिस्कनेक्ट केले",
     syncing: "सिंक होत आहे",
     
