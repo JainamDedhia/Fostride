@@ -7,7 +7,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { useBinData } from './bin-data-context';
 import { useTranslation } from './translation-context';
 import { useEffect, useState } from 'react';
-import { supabase } from "./supasbase";
+import { supabase } from "./supabase";
 
 
 // This data is now dynamically generated from the context
