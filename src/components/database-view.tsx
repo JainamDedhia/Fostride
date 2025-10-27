@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './ui/table';
-import { Database, Wifi, WifiOff, RefreshCw, Filter, ChevronDown, ChevronUp } from 'lucide-react';
+import { Database, Wifi, WifiOff, Filter, ChevronDown, ChevronUp } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Input } from './ui/input';
 import { supabase } from './supabase';
@@ -75,10 +75,10 @@ export function DatabaseView() {
         {
           event: '*',
           schema: 'public',
-          table: 'BinStatus'
+          table: 'bin_daily_data'  // ← CHANGED TO MATCH YOUR TABLE NAME
         },
         (payload) => {
-          console.log('🔔 Real-time BinStatus update:', payload);
+          console.log('🔔 Real-time bin_daily_data update:', payload);
           setLastDatabaseUpdate(new Date());
 
           if (payload.eventType === 'INSERT') {
@@ -241,15 +241,6 @@ export function DatabaseView() {
               Offline
             </Badge>
           )}
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={fetchBinStatusData}
-            disabled={isLoadingBinStatus}
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${isLoadingBinStatus ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
         </div>
       </div>
 
