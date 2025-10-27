@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
 import { Progress } from './ui/progress';
 import { Badge } from './ui/badge';
@@ -10,12 +10,27 @@ import { Label } from './ui/label';
 import { Slider } from './ui/slider';
 import { Input } from './ui/input';
 import { Switch } from './ui/switch';
-import { Trash2, AlertTriangle, CheckCircle, Clock, Settings, History, Filter } from 'lucide-react';
+import { Trash2, AlertTriangle, CheckCircle, Clock, Settings, History, Filter, Database, Wifi, RefreshCw } from 'lucide-react';
 import { toast } from "sonner@2.0.3";
 import { useBinData, BinData } from './bin-data-context';
 import { useTranslation } from './translation-context';
+import { supabase } from './supabase';
 
-
+// TypeScript interface for BinStatus table data
+interface BinStatusRecord {
+  id: number;
+  created_at: string;
+  BinId: string;
+  BinVersion: string;
+  BinStatus: string;
+  SubBin1: number;
+  SubBin2: number;
+  SubBin3: number;
+  SubBin4: number;
+  ErrorCodes: string | null;
+  User_id: string;
+  Total_fill_level: number;
+}
 
 const getStatusIcon = (status: string) => {
   switch (status) {
@@ -56,6 +71,12 @@ export function BinStatus() {
     emptyAllBins
   } = useBinData();
 
+  // NEW STATE FOR SUPABASE BINSTATUS DATA
+  const [binStatusRecords, setBinStatusRecords] = useState<BinStatusRecord[]>([]);
+  const [isRealTimeConnected, setIsRealTimeConnected] = useState(false);
+  const [lastDatabaseUpdate, setLastDatabaseUpdate] = useState<Date | null>(null);
+  const [isLoadingBinStatus, setIsLoadingBinStatus] = useState(false);
+
   const [isThresholdDialogOpen, setIsThresholdDialogOpen] = useState(false);
   const [selectedBin, setSelectedBin] = useState<BinData | null>(null);
   const [thresholdPercentage, setThresholdPercentage] = useState(80);
@@ -71,6 +92,108 @@ export function BinStatus() {
   const [showEmptySuccessMessage, setShowEmptySuccessMessage] = useState(false);
   const [emptySuccessMessage, setEmptySuccessMessage] = useState('');
   const [isEmptyAllConfirmDialogOpen, setIsEmptyAllConfirmDialogOpen] = useState(false);
+
+  // NEW: Fetch BinStatus data from Supabase
+  const fetchBinStatusData = async () => {
+    setIsLoadingBinStatus(true);
+    try {
+      const { data, error } = await supabase
+        .from('BinStatus')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(20);
+
+      if (error) {
+        console.error('Error fetching BinStatus:', error);
+        toast.error('Failed to load BinStatus data');
+      } else if (data) {
+        setBinStatusRecords(data);
+        setLastDatabaseUpdate(new Date());
+      }
+    } catch (err) {
+      console.error('Exception fetching BinStatus:', err);
+    } finally {
+      setIsLoadingBinStatus(false);
+    }
+  };
+
+  // NEW: Setup real-time subscription for BinStatus table
+  useEffect(() => {
+    fetchBinStatusData();
+
+    const channel = supabase
+      .channel('binstatus_realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'BinStatus'
+        },
+        (payload) => {
+          console.log('Real-time BinStatus update:', payload);
+          setLastDatabaseUpdate(new Date());
+
+          if (payload.eventType === 'INSERT') {
+            setBinStatusRecords(prev => [payload.new as BinStatusRecord, ...prev.slice(0, 19)]);
+          } else if (payload.eventType === 'UPDATE') {
+            setBinStatusRecords(prev =>
+              prev.map(record =>
+                record.id === (payload.new as BinStatusRecord).id ? payload.new as BinStatusRecord : record
+              )
+            );
+          } else if (payload.eventType === 'DELETE') {
+            setBinStatusRecords(prev => prev.filter(record => record.id !== (payload.old as any).id));
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log('Subscription status:', status);
+        setIsRealTimeConnected(status === 'SUBSCRIBED');
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  // NEW: Get status badge based on BinStatus value
+  const getBinStatusBadge = (status: string) => {
+    const statusLower = status.toLowerCase();
+    if (statusLower.includes('active') || statusLower.includes('normal')) {
+      return <Badge className="bg-green-500 hover:bg-green-600">Active</Badge>;
+    } else if (statusLower.includes('full') || statusLower.includes('critical')) {
+      return <Badge variant="destructive">Full</Badge>;
+    } else if (statusLower.includes('warning')) {
+      return <Badge className="bg-yellow-500 hover:bg-yellow-600">Warning</Badge>;
+    } else if (statusLower.includes('maintenance')) {
+      return <Badge className="bg-blue-500 hover:bg-blue-600">Maintenance</Badge>;
+    } else if (statusLower.includes('error')) {
+      return <Badge variant="destructive">Error</Badge>;
+    }
+    return <Badge variant="outline">{status}</Badge>;
+  };
+
+  // NEW: Format timestamp
+  const formatTimestamp = (timestamp: string) => {
+    const date = new Date(timestamp);
+    return date.toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    });
+  };
+
+  // NEW: Get fill level color
+  const getFillLevelColor = (level: number) => {
+    if (level >= 90) return 'text-red-600 font-bold';
+    if (level >= 75) return 'text-yellow-600 font-semibold';
+    if (level >= 50) return 'text-blue-600';
+    return 'text-green-600';
+  };
 
   // Translation-aware status badge function
   const getTranslatedStatusBadge = (status: string) => {
@@ -134,7 +257,6 @@ export function BinStatus() {
   const isNoneSelected = tempAlertSettings && Object.values(tempAlertSettings).every(enabled => !enabled);
 
   const handleScheduleCollection = () => {
-    // Check if any bin has a scheduled collection
     const hasScheduledCollection = Object.keys(scheduledCollections).length > 0;
     
     if (hasScheduledCollection) {
@@ -145,8 +267,6 @@ export function BinStatus() {
   };
 
   const handleSaveSchedule = () => {
-    // For simplicity, we'll apply the schedule to all bins
-    // In a real app, you might want to schedule individual bins
     const newSchedule: Record<number, number> = {};
     binData.forEach(bin => {
       newSchedule[bin.id] = scheduleHours;
@@ -212,19 +332,16 @@ export function BinStatus() {
     );
   };
 
-  // Helper function to determine bin status based on fill level
-  const getBinStatus = (fillLevel: number) => {
+  const getBinStatusValue = (fillLevel: number) => {
     if (fillLevel >= 90) return 'critical';
     if (fillLevel >= 75) return 'warning';
     return 'normal';
   };
 
-  // Helper function to calculate volume from fill level
   const calculateVolume = (fillLevel: number) => {
     return ((fillLevel / 100) * 5).toFixed(2) + 'L';
   };
 
-  // Calculate bins needing attention
   const getBinsNeedingAttention = () => {
     const critical = binData.filter(bin => bin.status === 'critical').length;
     const warning = binData.filter(bin => bin.status === 'warning').length;
@@ -232,14 +349,11 @@ export function BinStatus() {
     return { total, critical, warning };
   };
 
-  // Get next scheduled empty information
   const getNextScheduledEmpty = () => {
-    // Find the most critical bin (highest fill level among critical/warning bins)
     const criticalBins = binData.filter(bin => bin.status === 'critical');
     const warningBins = binData.filter(bin => bin.status === 'warning');
     
     if (criticalBins.length > 0) {
-      // If there are critical bins, find the one with highest fill level
       const mostCritical = criticalBins.reduce((prev, current) => 
         (prev.fillLevel > current.fillLevel) ? prev : current
       );
@@ -249,7 +363,6 @@ export function BinStatus() {
         status: 'critical'
       };
     } else if (warningBins.length > 0) {
-      // If there are warning bins, find the one with highest fill level
       const mostWarning = warningBins.reduce((prev, current) => 
         (prev.fillLevel > current.fillLevel) ? prev : current
       );
@@ -259,7 +372,6 @@ export function BinStatus() {
         status: 'warning'
       };
     } else {
-      // All bins are normal
       return {
         timeframe: 'None',
         message: 'All bins normal',
@@ -276,10 +388,8 @@ export function BinStatus() {
   const handleConfirmEmpty = () => {
     if (!binToEmpty) return;
 
-    // Use the context method to empty the bin
     emptyBin(binToEmpty.id);
 
-    // Format success message
     const now = new Date();
     const timeString = now.toLocaleTimeString('en-US', { 
       hour: '2-digit', 
@@ -291,12 +401,10 @@ export function BinStatus() {
     setShowEmptySuccessMessage(true);
     setIsEmptyConfirmDialogOpen(false);
 
-    // Hide success message after 5 seconds
     setTimeout(() => {
       setShowEmptySuccessMessage(false);
     }, 5000);
 
-    // Reset bin to empty state
     setBinToEmpty(null);
   };
 
@@ -306,7 +414,6 @@ export function BinStatus() {
   };
 
   const handleEmptyAllBins = () => {
-    // Get current time for the message
     const now = new Date();
     const timeString = now.toLocaleTimeString('en-US', { 
       hour: '2-digit', 
@@ -314,24 +421,19 @@ export function BinStatus() {
       hour12: true 
     });
 
-    // Get bins with waste before emptying
     const binsWithWaste = binData.filter(bin => bin.fillLevel > 0);
     
     if (binsWithWaste.length > 0) {
-      // Use the context method to empty all bins
       emptyAllBins();
 
-      // Show success message for all bins
       const binNames = binsWithWaste.map(bin => bin.name).join(', ');
       setEmptySuccessMessage(`All bins (${binNames}) emptied at ${timeString}`);
       setShowEmptySuccessMessage(true);
 
-      // Hide success message after 7 seconds (longer since it's more text)
       setTimeout(() => {
         setShowEmptySuccessMessage(false);
       }, 7000);
     } else {
-      // All bins are already empty
       setEmptySuccessMessage(`All bins are already empty`);
       setShowEmptySuccessMessage(true);
       setTimeout(() => {
@@ -345,8 +447,6 @@ export function BinStatus() {
   const handleCancelEmptyAll = () => {
     setIsEmptyAllConfirmDialogOpen(false);
   };
-
-
 
   return (
     <div className="space-y-6">
@@ -506,6 +606,223 @@ export function BinStatus() {
           </div>
         </CardContent>
       </Card>
+
+      {/* ============================== */}
+      {/* NEW: SUPABASE BINSTATUS TABLE */}
+      {/* ============================== */}
+      <Card className="border-2 border-primary/20">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Database className="h-6 w-6 text-primary" />
+              <div>
+                <CardTitle className="text-xl">Live BinStatus Database</CardTitle>
+                <CardDescription className="flex items-center gap-2 mt-1">
+                  Real-time data from Supabase BinStatus table
+                  {isRealTimeConnected && (
+                    <span className="flex items-center gap-1 text-green-600">
+                      <Wifi className="h-3 w-3 animate-pulse" />
+                      <span className="text-xs font-semibold">LIVE</span>
+                    </span>
+                  )}
+                </CardDescription>
+              </div>
+            </div>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={fetchBinStatusData}
+              disabled={isLoadingBinStatus}
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${isLoadingBinStatus ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {lastDatabaseUpdate && (
+            <div className="mb-4 p-3 bg-muted rounded-lg flex items-center justify-between">
+              <span className="text-sm text-muted-foreground">
+                Last updated: <strong>{lastDatabaseUpdate.toLocaleString()}</strong>
+              </span>
+              <Badge variant={isRealTimeConnected ? "default" : "secondary"}>
+                {isRealTimeConnected ? 'Real-time Active' : 'Polling'}
+              </Badge>
+            </div>
+          )}
+
+          {/* Desktop Table View */}
+          <div className="hidden md:block border rounded-lg overflow-hidden">
+            <div className="max-h-[500px] overflow-y-auto">
+              <Table>
+                <TableHeader className="sticky top-0 bg-background z-10">
+                  <TableRow>
+                    <TableHead className="text-xs font-semibold">Bin ID</TableHead>
+                    <TableHead className="text-xs font-semibold">Version</TableHead>
+                    <TableHead className="text-xs font-semibold">Status</TableHead>
+                    <TableHead className="text-xs font-semibold text-center">SubBin 1</TableHead>
+                    <TableHead className="text-xs font-semibold text-center">SubBin 2</TableHead>
+                    <TableHead className="text-xs font-semibold text-center">SubBin 3</TableHead>
+                    <TableHead className="text-xs font-semibold text-center">SubBin 4</TableHead>
+                    <TableHead className="text-xs font-semibold text-center">Total Fill</TableHead>
+                    <TableHead className="text-xs font-semibold">User ID</TableHead>
+                    <TableHead className="text-xs font-semibold">Timestamp</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {binStatusRecords.length > 0 ? (
+                    binStatusRecords.map((record) => (
+                      <TableRow key={record.id} className="hover:bg-muted/50">
+                        <TableCell className="font-mono text-sm">{record.BinId}</TableCell>
+                        <TableCell className="text-sm">{record.BinVersion}</TableCell>
+                        <TableCell>{getBinStatusBadge(record.BinStatus)}</TableCell>
+                        <TableCell className={`text-center font-semibold ${getFillLevelColor(record.SubBin1)}`}>
+                          {record.SubBin1}%
+                        </TableCell>
+                        <TableCell className={`text-center font-semibold ${getFillLevelColor(record.SubBin2)}`}>
+                          {record.SubBin2}%
+                        </TableCell>
+                        <TableCell className={`text-center font-semibold ${getFillLevelColor(record.SubBin3)}`}>
+                          {record.SubBin3}%
+                        </TableCell>
+                        <TableCell className={`text-center font-semibold ${getFillLevelColor(record.SubBin4)}`}>
+                          {record.SubBin4}%
+                        </TableCell>
+                        <TableCell className={`text-center font-bold ${getFillLevelColor(record.Total_fill_level)}`}>
+                          {record.Total_fill_level}%
+                        </TableCell>
+                        <TableCell className="font-mono text-xs">{record.User_id}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                          {formatTimestamp(record.created_at)}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow>
+                      <TableCell colSpan={10} className="text-center py-8">
+                        <div className="flex flex-col items-center gap-3">
+                          <Database className="h-12 w-12 text-muted-foreground" />
+                          <p className="text-muted-foreground">
+                            {isLoadingBinStatus ? 'Loading BinStatus data...' : 'No BinStatus records found'}
+                          </p>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+
+          {/* Mobile Card View */}
+          <div className="md:hidden space-y-4 max-h-[500px] overflow-y-auto">
+            {binStatusRecords.length > 0 ? (
+              binStatusRecords.map((record) => (
+                <Card key={record.id} className="border-l-4 border-l-primary">
+                  <CardContent className="pt-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="font-mono">{record.BinId}</Badge>
+                        <span className="text-xs text-muted-foreground">v{record.BinVersion}</span>
+                      </div>
+                      {getBinStatusBadge(record.BinStatus)}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground">SubBin 1</p>
+                        <p className={`text-lg font-bold ${getFillLevelColor(record.SubBin1)}`}>
+                          {record.SubBin1}%
+                        </p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground">SubBin 2</p>
+                        <p className={`text-lg font-bold ${getFillLevelColor(record.SubBin2)}`}>
+                          {record.SubBin2}%
+                        </p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground">SubBin 3</p>
+                        <p className={`text-lg font-bold ${getFillLevelColor(record.SubBin3)}`}>
+                          {record.SubBin3}%
+                        </p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground">SubBin 4</p>
+                        <p className={`text-lg font-bold ${getFillLevelColor(record.SubBin4)}`}>
+                          {record.SubBin4}%
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">Total Fill Level</span>
+                        <span className={`text-xl font-bold ${getFillLevelColor(record.Total_fill_level)}`}>
+                          {record.Total_fill_level}%
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-muted-foreground">User ID</span>
+                        <span className="text-xs font-mono">{record.User_id}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-muted-foreground">Timestamp</span>
+                        <span className="text-xs">{formatTimestamp(record.created_at)}</span>
+                      </div>
+                      {record.ErrorCodes && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-muted-foreground">Error Codes</span>
+                          <Badge variant="destructive" className="text-xs">{record.ErrorCodes}</Badge>
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))
+            ) : (
+              <div className="text-center py-12">
+                <Database className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+                <p className="text-muted-foreground">
+                  {isLoadingBinStatus ? 'Loading BinStatus data...' : 'No BinStatus records found'}
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* Summary Stats */}
+          {binStatusRecords.length > 0 && (
+            <div className="mt-4 p-4 bg-muted rounded-lg">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                <div>
+                  <p className="text-xs text-muted-foreground">Total Records</p>
+                  <p className="text-2xl font-bold">{binStatusRecords.length}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Avg Fill Level</p>
+                  <p className="text-2xl font-bold">
+                    {Math.round(binStatusRecords.reduce((sum, r) => sum + r.Total_fill_level, 0) / binStatusRecords.length)}%
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Critical Bins</p>
+                  <p className="text-2xl font-bold text-red-600">
+                    {binStatusRecords.filter(r => r.Total_fill_level >= 90).length}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Active Bins</p>
+                  <p className="text-2xl font-bold text-green-600">
+                    {binStatusRecords.filter(r => r.BinStatus.toLowerCase().includes('active')).length}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* ALL EXISTING DIALOGS BELOW - UNCHANGED */}
 
       {/* Threshold Setting Dialog */}
       <Dialog open={isThresholdDialogOpen} onOpenChange={setIsThresholdDialogOpen}>
@@ -692,7 +1009,6 @@ export function BinStatus() {
           </DialogHeader>
 
           <div className="space-y-3 overflow-y-auto max-h-[calc(90vh-120px)]">
-            {/* Filter Controls */}
             <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3.5">
               <div className="flex items-center gap-1.5 px-1 sm:px-3 py-0">
                 <Filter className="h-4 w-4" />
@@ -711,7 +1027,6 @@ export function BinStatus() {
               </Select>
             </div>
 
-            {/* History Table - Desktop */}
             <div className="hidden sm:block border rounded-lg max-h-[370px] overflow-y-auto">
               <Table>
                 <TableHeader>
@@ -755,7 +1070,6 @@ export function BinStatus() {
               </Table>
             </div>
 
-            {/* History Cards - Mobile */}
             <div className="sm:hidden space-y-3 max-h-[370px] overflow-y-auto">
               {getFilteredHistory().length > 0 ? (
                 getFilteredHistory().map((item) => (
@@ -784,7 +1098,6 @@ export function BinStatus() {
               )}
             </div>
 
-            {/* Summary */}
             {getFilteredHistory().length > 0 && (
               <div className="bg-muted rounded-lg px-3 py-2.5">
                 <p className="text-[13px] text-muted-foreground">
@@ -895,7 +1208,6 @@ export function BinStatus() {
           </DialogHeader>
           
           <div className="space-y-6 py-4">
-            {/* Select All Toggle */}
             <div className="flex items-center justify-between p-4 border rounded-lg">
               <div className="space-y-1">
                 <Label className="font-medium">Select All</Label>
@@ -909,7 +1221,6 @@ export function BinStatus() {
               />
             </div>
 
-            {/* Individual Bin Toggles */}
             <div className="space-y-3">
               <Label className="font-medium">Individual Bin Settings</Label>
               {binData.map((bin) => (

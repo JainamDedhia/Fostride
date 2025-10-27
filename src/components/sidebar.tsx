@@ -1,10 +1,12 @@
-import { BarChart3, Home, MapPin, Trash2, Settings, Bell, Moon, Sun, RotateCcw } from 'lucide-react';
+import { BarChart3, Home, MapPin, Trash2, Settings, Bell, Moon, Sun, RotateCcw, LogOut, Database } from 'lucide-react';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Switch } from './ui/switch';
 import { useBinData } from './bin-data-context';
 import { useSettings } from './settings-context';
 import { useTranslation } from './translation-context';
+import { supabase } from './supabase';
+import {useAuth} from './auth-context';
 
 interface SidebarProps {
   activeTab: string;
@@ -15,10 +17,16 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
   const { binData, alertsConfigured, binThresholds, resetBinData } = useBinData();
   const { binName, systemSettings, setSystemSettings, resetSettings } = useSettings();
   const { t } = useTranslation();
+  const { user, profile } = useAuth();
+  if (!user) {
+    return null; // or return a loading spinner
+  }
+  
   
   const menuItems = [
     { id: 'overview', label: t('overview'), icon: Home },
     { id: 'bins', label: t('binStatus'), icon: Trash2 },
+    { id: 'database', label: 'Database', icon: Database }, // NEW DATABASE VIEW
     { id: 'location', label: t('location'), icon: MapPin },
     { id: 'analytics', label: t('analytics'), icon: BarChart3 },
   ];
@@ -69,6 +77,22 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
     return alerts;
   };
 
+  const handleSignOut = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error('Sign out error:', error);
+        alert('Error signing out: ' + error.message);
+      } else {
+        // Optional: Redirect to login page or refresh the page
+        window.location.href = '/login'; // or window.location.reload();
+      }
+    } catch (error) {
+      console.error('Unexpected error during sign out:', error);
+      alert('An unexpected error occurred during sign out');
+    }
+  };
+
   const alerts = generateAlerts();
 
   return (
@@ -82,6 +106,30 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
           </div>
         </div>
       </div>
+
+      {/* User Profile Section */}
+      {user && (
+        <div className="px-3 sm:px-4 md:px-5 xl:px-6 pb-3 sm:pb-4 xl:pb-5 border-b border-border">
+          <div className="flex items-center gap-3 p-3 bg-accent/10 rounded-lg border">
+            <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center text-white text-sm font-medium shrink-0">
+              {profile?.name?.charAt(0) || user.email?.charAt(0) || 'U'}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium truncate">
+                {profile?.name || 'User'}
+              </p>
+              <p className="text-xs text-muted-foreground truncate">
+                {user.email}
+              </p>
+              {profile?.phone && (
+                <p className="text-xs text-muted-foreground truncate">
+                  📞 {profile.phone}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <nav className="flex-1 p-2 sm:p-3 xl:p-4 overflow-y-auto">
         <div className="space-y-1 xl:space-y-2">
@@ -173,6 +221,16 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
         >
           <RotateCcw className="h-4 w-4 mr-2 xl:mr-3 shrink-0" />
           <span className="truncate">{t('reset')}</span>
+        </Button>
+
+        {/* Sign Out Button */}
+        <Button 
+          variant="ghost" 
+          className="w-full justify-start text-xs sm:text-sm xl:text-base py-2 xl:py-3 px-2 sm:px-3 text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-900/20"
+          onClick={handleSignOut}
+        >
+          <LogOut className="h-4 w-4 mr-2 xl:mr-3 shrink-0" />
+          <span className="truncate">{t('signOut') || 'Sign Out'}</span>
         </Button>
       </div>
     </div>

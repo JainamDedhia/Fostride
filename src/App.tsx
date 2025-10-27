@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Sidebar } from './components/sidebar';
 import { Overview } from './components/overview';
 import { BinStatus } from './components/bin-status';
+import { DatabaseView } from './components/database-view'; // ← NEW IMPORT
 import { LocationTracker } from './components/location-tracker';
 import { Analytics } from './components/analytics';
 import { Settings } from './components/settings';
@@ -12,6 +13,12 @@ import { TranslationProvider, useTranslation } from './components/translation-co
 import { Toaster } from './components/ui/sonner';
 import { Button } from './components/ui/button';
 import { Menu, X, ArrowRight } from 'lucide-react';
+import { AuthProvider, useAuth } from "./components/auth-context";
+import { Login } from "./components/Login";
+import TestAuth from './components/TestAuth'
+import Register from './components/Register';
+import AuthCallback from './components/auth-callback';
+import EmailVerified from './components/email-verified';
 
 function HomeScreen({ onEnterDashboard }: { onEnterDashboard: () => void }) {
   const { binName } = useSettings();
@@ -95,6 +102,8 @@ function DashboardContent() {
         return <Overview />;
       case 'bins':
         return <BinStatus />;
+      case 'database':  // ← NEW CASE
+        return <DatabaseView />;  // ← NEW CASE
       case 'location':
         return <LocationTracker />;
       case 'analytics':
@@ -169,6 +178,7 @@ export default function App() {
     <TranslationProvider onLanguageChange={handleLanguageChange}>
       <SettingsProvider>
         <BinDataProvider>
+          <AuthProvider>
           <AppContent 
             showHome={showHome}
             setShowHome={setShowHome}
@@ -178,6 +188,7 @@ export default function App() {
             setHasEnteredDashboard={setHasEnteredDashboard}
           />
           <Toaster />
+          </AuthProvider>
         </BinDataProvider>
       </SettingsProvider>
     </TranslationProvider>
@@ -200,6 +211,43 @@ function AppContent({
   setHasEnteredDashboard: (entered: boolean) => void;
 }) {
   const { setSystemSettings } = useSettings();
+  const { user, loading } = useAuth();
+
+  // Show loading while checking auth
+  if (loading) {
+    console.log("🔄 AppContent: Still loading auth...");
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center space-y-4">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          <p className="text-muted-foreground">Checking authentication...</p>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="text-blue-600 hover:underline text-sm"
+          >
+            Stuck? Click to reload
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  console.log("✅ AppContent: Auth loaded - user:", user?.email);
+
+  // Check current route
+  const currentPath = window.location.pathname;
+  
+  if(!user) {
+    console.log("🔒 No user, redirecting to auth page");
+    if (currentPath === '/register') {
+      return <Register />;
+    } else if (currentPath === '/auth/callback') {
+      return <AuthCallback />;
+    } else if (currentPath === '/email-verified') {
+      return <EmailVerified />;
+    }
+    return <Login />;
+  }
 
   const handleEnterDashboard = () => {
     // Force light mode when entering dashboard
