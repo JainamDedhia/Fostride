@@ -77,21 +77,29 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
     return alerts;
   };
 
-  const handleSignOut = async () => {
-    try {
-      const { error } = await supabase.auth.signOut();
-      if (error) {
-        console.error('Sign out error:', error);
-        alert('Error signing out: ' + error.message);
-      } else {
-        // Optional: Redirect to login page or refresh the page
-        window.location.href = '/login'; // or window.location.reload();
-      }
-    } catch (error) {
-      console.error('Unexpected error during sign out:', error);
-      alert('An unexpected error occurred during sign out');
+  // IN sidebar.tsx - REPLACE THIS:
+const handleSignOut = async () => {
+  try {
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      console.error('Sign out error:', error);
+      alert('Error signing out: ' + error.message);
+    } else {
+      // Optional: Redirect to login page or refresh the page
+      window.location.href = '/login'; // or window.location.reload();
     }
-  };
+  } catch (error) {
+    console.error('Unexpected error during sign out:', error);
+    alert('An unexpected error occurred during sign out');
+  }
+};
+
+// WITH THIS:
+const { signOut } = useAuth();
+
+const handleSignOut = async () => {
+  await signOut();
+};
 
   const alerts = generateAlerts();
 
