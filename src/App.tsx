@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { Sidebar } from './components/sidebar';
 import { Overview } from './components/overview';
 import { BinStatus } from './components/bin-status';
-import { DatabaseView } from './components/database-view'; // ← NEW IMPORT
+import { DatabaseView } from './components/database-view';
 import { LocationTracker } from './components/location-tracker';
 import { Analytics } from './components/analytics';
 import { Settings } from './components/settings';
@@ -15,7 +16,6 @@ import { Button } from './components/ui/button';
 import { Menu, X, ArrowRight } from 'lucide-react';
 import { AuthProvider, useAuth } from "./components/auth-context";
 import { Login } from "./components/Login";
-import TestAuth from './components/TestAuth'
 import Register from './components/Register';
 import AuthCallback from './components/auth-callback';
 import EmailVerified from './components/email-verified';
@@ -102,8 +102,8 @@ function DashboardContent() {
         return <Overview />;
       case 'bins':
         return <BinStatus />;
-      case 'database':  // ← NEW CASE
-        return <DatabaseView />;  // ← NEW CASE
+      case 'database':
+        return <DatabaseView />;
       case 'location':
         return <LocationTracker />;
       case 'analytics':
@@ -162,39 +162,6 @@ function DashboardContent() {
   );
 }
 
-export default function App() {
-  const [showHome, setShowHome] = useState(true);
-  const [dashboardVisible, setDashboardVisible] = useState(false);
-  const [hasEnteredDashboard, setHasEnteredDashboard] = useState(false);
-
-  const handleLanguageChange = () => {
-    // Reset to overview page when language changes
-    setShowHome(false);
-    setDashboardVisible(true);
-    setHasEnteredDashboard(true);
-  };
-
-  return (
-    <TranslationProvider onLanguageChange={handleLanguageChange}>
-      <SettingsProvider>
-        <BinDataProvider>
-          <AuthProvider>
-          <AppContent 
-            showHome={showHome}
-            setShowHome={setShowHome}
-            dashboardVisible={dashboardVisible}
-            setDashboardVisible={setDashboardVisible}
-            hasEnteredDashboard={hasEnteredDashboard}
-            setHasEnteredDashboard={setHasEnteredDashboard}
-          />
-          <Toaster />
-          </AuthProvider>
-        </BinDataProvider>
-      </SettingsProvider>
-    </TranslationProvider>
-  );
-}
-
 function AppContent({ 
   showHome, 
   setShowHome, 
@@ -234,21 +201,6 @@ function AppContent({
 
   console.log("✅ AppContent: Auth loaded - user:", user?.email);
 
-  // Check current route
-  const currentPath = window.location.pathname;
-  
-  if(!user) {
-    console.log("🔒 No user, redirecting to auth page");
-    if (currentPath === '/register') {
-      return <Register />;
-    } else if (currentPath === '/auth/callback') {
-      return <AuthCallback />;
-    } else if (currentPath === '/email-verified') {
-      return <EmailVerified />;
-    }
-    return <Login />;
-  }
-
   const handleEnterDashboard = () => {
     // Force light mode when entering dashboard
     setSystemSettings(prev => ({ ...prev, darkMode: false }));
@@ -262,33 +214,77 @@ function AppContent({
     }, 100);
   };
 
-  const handleResetToOverview = () => {
-    if (hasEnteredDashboard) {
-      // If user has already entered dashboard, reset goes to overview
-      setShowHome(false);
-      setDashboardVisible(true);
-    } else {
-      // If somehow we need to reset before entering dashboard, go to home
-      setShowHome(true);
-      setDashboardVisible(false);
-    }
+  // Routes that don't require authentication
+  if (!user) {
+    console.log("🔒 No user, showing auth routes");
+    return (
+      <Routes>
+        <Route path="/register" element={<Register />} />
+        <Route path="/auth/callback" element={<AuthCallback />} />
+        <Route path="/email-verified" element={<EmailVerified />} />
+        <Route path="/" element={<Login />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    );
+  }
+
+  // Routes that require authentication
+  return (
+    <Routes>
+      <Route path="/auth/callback" element={<AuthCallback />} />
+      <Route path="/email-verified" element={<EmailVerified />} />
+      <Route 
+        path="/*" 
+        element={
+          showHome ? (
+            <HomeScreen onEnterDashboard={handleEnterDashboard} />
+          ) : (
+            <div 
+              className={`transition-all duration-700 ease-out ${
+                dashboardVisible 
+                  ? 'opacity-100 transform translate-y-0' 
+                  : 'opacity-0 transform translate-y-4'
+              }`}
+            >
+              <DashboardContent />
+            </div>
+          )
+        } 
+      />
+    </Routes>
+  );
+}
+
+// ⬇️ THIS WAS MISSING! THIS IS CRITICAL!
+export default function App() {
+  const [showHome, setShowHome] = useState(true);
+  const [dashboardVisible, setDashboardVisible] = useState(false);
+  const [hasEnteredDashboard, setHasEnteredDashboard] = useState(false);
+
+  const handleLanguageChange = () => {
+    // Reset to overview page when language changes
+    setShowHome(false);
+    setDashboardVisible(true);
+    setHasEnteredDashboard(true);
   };
 
   return (
-    <>
-      {showHome ? (
-        <HomeScreen onEnterDashboard={handleEnterDashboard} />
-      ) : (
-        <div 
-          className={`transition-all duration-700 ease-out ${
-            dashboardVisible 
-              ? 'opacity-100 transform translate-y-0' 
-              : 'opacity-0 transform translate-y-4'
-          }`}
-        >
-          <DashboardContent />
-        </div>
-      )}
-    </>
+    <TranslationProvider onLanguageChange={handleLanguageChange}>
+      <SettingsProvider>
+        <BinDataProvider>
+          <AuthProvider>
+            <AppContent 
+              showHome={showHome}
+              setShowHome={setShowHome}
+              dashboardVisible={dashboardVisible}
+              setDashboardVisible={setDashboardVisible}
+              hasEnteredDashboard={hasEnteredDashboard}
+              setHasEnteredDashboard={setHasEnteredDashboard}
+            />
+            <Toaster />
+          </AuthProvider>
+        </BinDataProvider>
+      </SettingsProvider>
+    </TranslationProvider>
   );
 }

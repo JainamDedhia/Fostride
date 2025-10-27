@@ -1,34 +1,47 @@
-// components/auth-callback.tsx
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from './supabase';
 
 export default function AuthCallback() {
-  const [message, setMessage] = useState('Processing...');
+  const [message, setMessage] = useState('Processing authentication...');
   const navigate = useNavigate();
 
   useEffect(() => {
     const handleAuthCallback = async () => {
       try {
+        console.log('🔄 AuthCallback: Processing callback...');
+        
+        // Get the session from the URL hash
         const { data, error } = await supabase.auth.getSession();
         
+        console.log('📦 Session data:', data);
+        console.log('❌ Session error:', error);
+        
         if (error) {
-          setMessage('Authentication failed. Please try again.');
-          console.error('Auth error:', error);
+          console.error('❌ Auth error:', error);
+          setMessage('Authentication failed. Redirecting to login...');
           setTimeout(() => navigate('/'), 3000);
           return;
         }
 
         if (data.session) {
-          setMessage('Authentication successful! Redirecting...');
+          console.log('✅ Session found! User:', data.session.user.email);
+          setMessage('Authentication successful! Redirecting to dashboard...');
+          
+          // Store user data if needed
+          const user = data.session.user;
+          console.log('👤 User metadata:', user.user_metadata);
+          
+          // Redirect to home/dashboard after short delay
           setTimeout(() => navigate('/'), 2000);
         } else {
+          console.log('⚠️ No session found');
           setMessage('No session found. Redirecting to login...');
           setTimeout(() => navigate('/'), 3000);
         }
       } catch (err) {
-        console.error('Unexpected error:', err);
-        setMessage('An unexpected error occurred.');
+        console.error('💥 Unexpected error:', err);
+        setMessage('An unexpected error occurred. Redirecting...');
         setTimeout(() => navigate('/'), 3000);
       }
     };
