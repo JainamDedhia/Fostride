@@ -5,8 +5,7 @@ import { Switch } from './ui/switch';
 import { useBinData } from './bin-data-context';
 import { useSettings } from './settings-context';
 import { useTranslation } from './translation-context';
-import { supabase } from './supabase';
-import {useAuth} from './auth-context';
+import { useAuth } from './auth-context';
 
 interface SidebarProps {
   activeTab: string;
@@ -17,16 +16,16 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
   const { binData, alertsConfigured, binThresholds, resetBinData } = useBinData();
   const { binName, systemSettings, setSystemSettings, resetSettings } = useSettings();
   const { t } = useTranslation();
-  const { user, profile } = useAuth();
-  if (!user) {
-    return null; // or return a loading spinner
-  }
+  const { user, profile, signOut } = useAuth(); // ✅ Get signOut from auth context
   
+  if (!user) {
+    return null;
+  }
   
   const menuItems = [
     { id: 'overview', label: t('overview'), icon: Home },
     { id: 'bins', label: t('binStatus'), icon: Trash2 },
-    { id: 'database', label: 'Database', icon: Database }, // NEW DATABASE VIEW
+    { id: 'database', label: 'Database', icon: Database },
     { id: 'location', label: t('location'), icon: MapPin },
     { id: 'analytics', label: t('analytics'), icon: BarChart3 },
   ];
@@ -77,34 +76,16 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
     return alerts;
   };
 
-  // IN sidebar.tsx - REPLACE THIS:
-const handleSignOut = async () => {
-  try {
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      console.error('Sign out error:', error);
-      alert('Error signing out: ' + error.message);
-    } else {
-      // Optional: Redirect to login page or refresh the page
-      window.location.href = '/login'; // or window.location.reload();
-    }
-  } catch (error) {
-    console.error('Unexpected error during sign out:', error);
-    alert('An unexpected error occurred during sign out');
-  }
-};
-
-// WITH THIS:
-const { signOut } = useAuth();
-
-const handleSignOut = async () => {
-  await signOut();
-};
+  // ✅ ONLY ONE handleSignOut function
+  const handleSignOut = async () => {
+    await signOut();
+  };
 
   const alerts = generateAlerts();
 
   return (
     <div className="w-full bg-card border-r border-border flex flex-col h-screen xl:h-full">
+      {/* ... rest of your JSX remains the same ... */}
       <div className="p-3 sm:p-4 md:p-5 xl:p-6 border-b border-border">
         <div className="flex items-center gap-2">
           <Trash2 className="h-5 w-5 sm:h-6 sm:w-6 xl:h-8 xl:w-8 text-primary shrink-0" />
