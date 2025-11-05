@@ -577,21 +577,6 @@ export function Settings() {
 
               <Separator />
 
-              <div className="space-y-4">
-                <h3 className="text-lg font-medium">Current Location</h3>
-                <div className="bg-muted p-4 rounded-lg">
-                  <div className="flex items-start gap-2">
-                    <MapPin className="h-5 w-5 text-muted-foreground mt-0.5" />
-                    <div>
-                      <p className="font-medium">KJ Somaiya College of Engineering</p>
-                      <p className="text-sm text-muted-foreground">
-                        Bhaskaracharya Building, Vidyanagar, Vidyavihar East<br />
-                        Ghatkopar East, Mumbai, Maharashtra 400077
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
             </CardContent>
           </Card>
         </TabsContent>

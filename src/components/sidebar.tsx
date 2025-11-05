@@ -25,8 +25,6 @@ export function Sidebar({ activeTab, setActiveTab }: SidebarProps) {
   const menuItems = [
     { id: 'overview', label: t('overview'), icon: Home },
     { id: 'bins', label: t('binStatus'), icon: Trash2 },
-    { id: 'database', label: 'Database', icon: Database },
-    { id: 'location', label: t('location'), icon: MapPin },
     { id: 'analytics', label: t('analytics'), icon: BarChart3 },
   ];
 

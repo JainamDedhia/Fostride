@@ -152,21 +152,15 @@ useEffect(() => {
   const wasteBreakdown = getDynamicWasteBreakdown();
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold">{t('overview')}</h1>
           <p className="text-sm sm:text-base text-muted-foreground">{t('realTimeMonitoring')}</p>
         </div>
-        <div className="flex gap-2">
-          <div className="flex items-center gap-2 px-2 py-1 sm:px-3">
-            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-            <span className="text-green-500 text-xs sm:text-sm font-medium">{t('online').toLowerCase()}</span>
-          </div>
-        </div>
       </div>
 
       {/* Key Metrics */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
         <Card>
   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
     <CardTitle className="text-sm font-medium">{t('totalWasteCollected')}</CardTitle>
@@ -224,18 +218,6 @@ useEffect(() => {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">{t('locationStatus')}</CardTitle>
-            <MapPin className={`h-4 w-4 ${systemOnline ? 'text-green-600' : 'text-red-600'}`} />
-          </CardHeader>
-          <CardContent>
-            <div className="text-xl sm:text-2xl font-bold">{systemOnline ? t('online') : t('offline')}</div>
-            <p className="text-xs sm:text-sm text-muted-foreground">
-              {systemOnline ? t('gpsWifiConnected') : t('connectionLost')}
-            </p>
-          </CardContent>
-        </Card>
       </div>
 
       {/* Charts Row */}
