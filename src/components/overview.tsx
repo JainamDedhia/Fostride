@@ -160,13 +160,13 @@ useEffect(() => {
       </div>
 
       {/* Key Metrics */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6">
-        <Card>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 sm:gap-6 items-stretch auto-rows-[minmax(0,1fr)]">
+        <Card className="h-full flex flex-col">
   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
     <CardTitle className="text-sm font-medium">{t('totalWasteCollected')}</CardTitle>
     <Trash2 className="h-4 w-4 text-muted-foreground" />
   </CardHeader>
-  <CardContent>
+  <CardContent className="flex-1">
     {/* 🔥 LIVE DATA FROM FIREBASE */}
     <div className="text-xl sm:text-2xl font-bold">
       {supabaseData ? supabaseData.total_waste.toFixed(1) : totalWasteToday.toFixed(1)}L
@@ -188,7 +188,7 @@ useEffect(() => {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="h-full flex flex-col">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">{t('activeBins')}</CardTitle>
             <div className="flex gap-1">
@@ -196,7 +196,7 @@ useEffect(() => {
               <div className="w-2 h-2 bg-red-500 rounded-full"></div>
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="flex-1">
             <div className="text-xl sm:text-2xl font-bold">{activeBinsInfo.active}/{activeBinsInfo.total}</div>
             <p className="text-xs sm:text-sm text-muted-foreground">
               {activeBinsInfo.needingAttention > 0 
@@ -207,12 +207,12 @@ useEffect(() => {
           </CardContent>
         </Card>
 
-        <Card>
+        <Card className="h-full flex flex-col">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">{t('averageFillLevel')}</CardTitle>
             <Progress value={averageFillLevel} className="w-8 h-2" />
           </CardHeader>
-          <CardContent>
+          <CardContent className="flex-1">
             <div className="text-xl sm:text-2xl font-bold">{averageFillLevel}%</div>
             <p className="text-xs sm:text-sm text-muted-foreground">{currentWasteInBins.toFixed(1)}L / 20L {t('capacity')}</p>
           </CardContent>
